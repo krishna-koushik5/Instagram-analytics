@@ -1,0 +1,36 @@
+# Git files
+.git
+.gitignore
+
+# Documentation
+*.md
+README.md
+SETUP_GUIDE.md
+RAILWAY_SETUP.md
+
+# Python files (not needed for PHP deployment)
+python/
+*.py
+
+# Logs
+*.log
+webhooks/*.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Vendor (if you want to exclude, but usually include it)
+# vendor/
+
+# Temporary files
+*.tmp
+*.temp
+

@@ -1,0 +1,7 @@
+{
+  "name": "instagram-analytics",
+  "description": "Instagram Graph API Analytics Tool",
+  "require": {
+    "php": ">=7.4"
+  }
+}

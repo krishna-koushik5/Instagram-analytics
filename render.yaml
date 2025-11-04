@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: instagram-analytics
+    env: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 80
+    healthCheckPath: /get_multiple_insights.php
+
