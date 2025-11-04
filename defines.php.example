@@ -1,0 +1,17 @@
+<?php
+	session_start();
+
+	define( 'FACEBOOK_APP_ID', 'YOUR_FACEBOOK_APP_ID' );
+	define( 'FACEBOOK_APP_SECRET', 'YOUR_FACEBOOK_APP_SECRET' );
+	define( 'FACEBOOK_REDIRECT_URI', 'https://your-app-name.onrender.com/obtaining_access_token.php' ); // Update with your Render URL
+	define( 'ENDPOINT_BASE', 'https://graph.facebook.com/v5.0/' );
+
+	// accessToken
+	$accessToken = 'YOUR_ACCESS_TOKEN';
+
+	// page id
+	$pageId = 'YOUR_PAGE_ID';
+
+	// instagram business account id
+	$instagramAccountId = 'YOUR_INSTAGRAM_ACCOUNT_ID';
+
