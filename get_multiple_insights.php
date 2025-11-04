@@ -2,7 +2,8 @@
 	// Increase execution time for accounts with many posts
 	set_time_limit( 300 ); // 5 minutes
 	
-	include 'defines.php';
+	// Load credentials from environment variables (Render) or defines.php (local)
+	include 'load_config.php';
 
 	// ============================================
 	// CONFIGURATION: Add Instagram usernames here
