@@ -13,6 +13,8 @@
 		// Add more Instagram usernames below (without @ symbol):
 		'101xfounders',      // Replace with actual Instagram username
 		'bizzindia',      // Replace with actual Instagram username
+		'startupcoded',      // New account
+		'foundersinindia',      // New account
 		// Add as many as you want:
 		// 'username3',
 		// 'username4',
@@ -109,6 +111,69 @@
 			'access_token' => $accessToken
 		);
 		return makeApiCall( $userInsightsEndpoint, 'GET', $userInsightParams );
+	}
+
+	function getMonthlyTotalViews( $instagramAccountId, $accessToken ) {
+		// Get total views from first of current month to today
+		$firstOfMonth = date( 'Y-m-01' );
+		$today = date( 'Y-m-d' );
+		$firstOfMonthTimestamp = strtotime( $firstOfMonth . ' 00:00:00' );
+		$todayTimestamp = strtotime( $today . ' 23:59:59' );
+		
+		$totalViews = 0;
+		$maxProcess = 100; // Process more items to get all from current month
+		
+		// Get recent media
+		$mediaEndpoint = ENDPOINT_BASE . $instagramAccountId . '/media';
+		$mediaParams = array(
+			'fields' => 'id,media_type,permalink,timestamp',
+			'limit' => $maxProcess,
+			'access_token' => $accessToken
+		);
+		
+		$mediaResponse = makeApiCall( $mediaEndpoint, 'GET', $mediaParams );
+		
+		if ( isset( $mediaResponse['error'] ) || !isset( $mediaResponse['data'] ) || empty( $mediaResponse['data'] ) ) {
+			return 0;
+		}
+		
+		// Filter for videos/reels from current month
+		foreach ( $mediaResponse['data'] as $media ) {
+			// Process both VIDEO type (reels and videos)
+			if ( $media['media_type'] == 'VIDEO' || $media['media_type'] == 'REELS' ) {
+				$mediaTimestamp = strtotime( $media['timestamp'] );
+				
+				// Check if media is from current month (between first of month and today)
+				if ( $mediaTimestamp >= $firstOfMonthTimestamp && $mediaTimestamp <= $todayTimestamp ) {
+					// Try Reels metrics first (for reels)
+					$mediaInsights = getMediaInsights( $media['id'], $accessToken, 'VIDEO', true );
+					
+					// If Reels metrics fail, try regular video metrics
+					if ( isset( $mediaInsights['error'] ) ) {
+						$mediaInsights = getMediaInsights( $media['id'], $accessToken, 'VIDEO', false );
+					}
+					
+					if ( isset( $mediaInsights['data'] ) && !empty( $mediaInsights['data'] ) ) {
+						foreach ( $mediaInsights['data'] as $insight ) {
+							$insightName = isset( $insight['name'] ) ? $insight['name'] : ( isset( $insight['title'] ) ? strtolower( str_replace( ' ', '_', $insight['title'] ) ) : '' );
+							
+							// Look for views, video_views, or any metric containing 'view'
+							if ( $insightName == 'views' || $insightName == 'video_views' || 
+							     strpos( strtolower( $insightName ), 'view' ) !== false ||
+							     strpos( strtolower( $insightName ), 'play' ) !== false ) {
+								if ( !empty( $insight['values'] ) ) {
+									$views = isset( $insight['values'][0]['value'] ) ? intval( $insight['values'][0]['value'] ) : 0;
+									$totalViews += $views;
+									break; // Found views, stop looking for this media
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		return $totalViews;
 	}
 
 	function getReelsInsights( $instagramAccountId, $accessToken, $limit = null ) {
@@ -266,20 +331,262 @@
 
 	// Results array
 	$results = [];
+	
+	// ============================================
+	// COLLECT DATA FOR LANDING PAGE
+	// Only load monthly views (fast) - other detailed metrics load on detail page
+	// ============================================
+	$accountsData = array();
+	$totalMonthlyViews = 0;
+	$ownedAccounts = ['101xmarketing', '101xfounders', 'bizzindia', 'startupcoded', 'foundersinindia'];
+	
+	// Process each Instagram username to collect basic info + monthly views
+	foreach ( $instagramUsernames as $username ) {
+		$accountData = array(
+			'username' => $username,
+			'error' => null,
+			'account' => null,
+			'accountId' => null,
+			'monthlyViews' => 0,
+			'posts' => 0,
+			'followers' => 0,
+			'following' => 0
+		);
+		
+		// Get business discovery (basic info)
+		$businessInfo = getBusinessDiscovery( $username, $instagramAccountId, $accessToken );
+		
+		if ( isset( $businessInfo['error'] ) ) {
+			$accountData['error'] = $businessInfo['error']['message'];
+			$accountsData[] = $accountData;
+			continue;
+		}
+		
+		if ( !isset( $businessInfo['business_discovery'] ) ) {
+			$accountData['error'] = 'Could not find business account';
+			$accountsData[] = $accountData;
+			continue;
+		}
+		
+		$account = $businessInfo['business_discovery'];
+		$accountId = $account['id'];
+		
+		$accountData['account'] = $account;
+		$accountData['accountId'] = $accountId;
+		$accountData['posts'] = isset( $account['media_count'] ) ? $account['media_count'] : 0;
+		$accountData['followers'] = isset( $account['followers_count'] ) ? $account['followers_count'] : 0;
+		$accountData['following'] = isset( $account['follows_count'] ) ? $account['follows_count'] : 0;
+		
+		// Get monthly total views only (for owned accounts)
+		if ( in_array( $username, $ownedAccounts ) || $accountId == $instagramAccountId ) {
+			$monthlyViews = getMonthlyTotalViews( $accountId, $accessToken );
+			$accountData['monthlyViews'] = $monthlyViews;
+			$totalMonthlyViews += $monthlyViews;
+		}
+		
+		// NOTE: Other detailed insights (reels views, reach, likes) 
+		// are NOT loaded here to keep the landing page fast.
+		// They will be loaded in account_details.php when user clicks on a card.
+		
+		$accountsData[] = $accountData;
+	}
 ?>
 <!DOCTYPE html>
 <html>
 	<head>
-		<title>Instagram Page Insights - Multiple Accounts</title>
+		<title>Front Seat - Instagram Analytics</title>
 		<meta charset="utf-8" />
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@700&family=Montserrat:wght@800;900&display=swap"
+			rel="stylesheet">
 		<style>
-			/* Dark Mode Theme - YouTube Style */
+			/* Dark Mode Theme - Landing Page Design */
+			* {
+				margin: 0;
+				padding: 0;
+				box-sizing: border-box;
+			}
 			body { 
 				font-family: Arial, sans-serif; 
-				margin: 20px; 
-				background: #0f0f0f; 
+			background: #000000 !important;
 				color: #ffffff; 
+			overflow-x: hidden;
+		}
+		
+		/* Landing Section - Hero */
+		.landing-section {
+			min-height: 100vh;
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+			align-items: center;
+			position: relative;
+			background: #000000;
+			padding: 40px 20px;
+		}
+		
+		/* Purple glow effects in corners */
+		.landing-section::before {
+			content: '';
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: 300px;
+			height: 300px;
+			background: radial-gradient(circle, rgba(94, 0, 255, 0.3) 0%, transparent 70%);
+			pointer-events: none;
+		}
+		
+		.landing-section::after {
+			content: '';
+			position: absolute;
+			top: 0;
+			right: 0;
+			width: 300px;
+			height: 300px;
+			background: radial-gradient(circle, rgba(94, 0, 255, 0.3) 0%, transparent 70%);
+			pointer-events: none;
+		}
+		
+		/* Company Logo */
+		.company-logo {
+			margin-bottom: 60px;
+			text-align: center;
+			z-index: 1;
+			opacity: 0;
+			transform: scale(0.95);
+			animation: fadeIn 1.2s ease-in-out forwards;
+		}
+		
+		@keyframes fadeIn {
+			from {
+				opacity: 0;
+				transform: scale(0.95);
 			}
+			to {
+				opacity: 1;
+				transform: scale(1);
+			}
+		}
+		
+		.company-logo h1 {
+			color: #5E00FF;
+			font-family: 'Montserrat', 'Inter', sans-serif;
+			font-weight: 900;
+			font-size: 25vw;
+			line-height: 0.8;
+			text-align: center;
+			margin: 0;
+			letter-spacing: 0;
+		}
+		
+		@media (min-width: 768px) {
+			.company-logo h1 {
+				font-size: 15vw;
+			}
+		}
+		
+		/* Total Views Display */
+		.total-views-container {
+			text-align: center;
+			z-index: 1;
+		}
+		
+		.total-views-number {
+			font-size: 64px;
+			font-weight: bold;
+			color: #ffffff;
+			margin: 20px 0;
+			letter-spacing: 2px;
+		}
+		
+		.total-views-underline {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 20px;
+			margin-top: 20px;
+		}
+		
+		.total-views-line {
+			width: 100px;
+			height: 2px;
+			background: linear-gradient(to right, transparent, #5E00FF, transparent);
+		}
+		
+		/* Account Cards Section */
+		.account-cards-section {
+			min-height: 100vh;
+			background: #000000;
+			padding: 80px 20px;
+		}
+		
+		.cards-container {
+			max-width: 1400px;
+			margin: 0 auto;
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+			gap: 30px;
+			padding: 20px;
+		}
+		
+		.account-card {
+			background: rgba(33, 33, 33, 0.8);
+			border: 1px solid rgba(255, 255, 255, 0.1);
+			border-radius: 12px;
+			padding: 30px;
+			backdrop-filter: blur(10px);
+			transition: transform 0.3s, box-shadow 0.3s;
+		}
+		
+		.account-card[onclick] {
+			cursor: pointer;
+		}
+		
+		.account-card:hover {
+			transform: translateY(-5px);
+			box-shadow: 0 10px 30px rgba(94, 0, 255, 0.3);
+		}
+		
+		.account-name {
+			font-size: 24px;
+			font-weight: bold;
+			color: #ffffff;
+			margin-bottom: 15px;
+		}
+		
+		.account-meta {
+			font-size: 14px;
+			color: #aaaaaa;
+			margin-bottom: 25px;
+			padding-bottom: 15px;
+			border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		}
+		
+		.metric-row {
+			margin: 15px 0;
+			color: #ffffff;
+		}
+		
+		.metric-label {
+			font-size: 14px;
+			color: #aaaaaa;
+			margin-bottom: 5px;
+		}
+		
+		.metric-value {
+			font-size: 20px;
+			font-weight: bold;
+			color: #ffffff;
+		}
+		
+		.error {
+			color: #ff4444;
+			padding: 10px;
+		}
+			
 			.container { 
 				max-width: 1200px; 
 				margin: 0 auto; 
@@ -464,316 +771,44 @@
 			}
 		</style>
 	</head>
-	<body>
-		<div class="container">
-			<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-				<h1 style="margin: 0;">📊 Instagram Page Insights</h1>
-				<div class="menu-container">
-					<button class="hamburger-btn" onclick="toggleDropdown()">
-						<div class="hamburger-icon">
-							<span></span>
-							<span></span>
-							<span></span>
+	<body style="background: #000000 !important;">
+		<!-- Landing Section -->
+		<section class="landing-section">
+			<div class="company-logo">
+				<h1>FRONT<br />SEAT</h1>
 						</div>
-						<span>Select Account</span>
-						<span class="selected-account" id="selectedAccount">All Accounts</span>
-					</button>
-					<div class="dropdown-menu" id="dropdownMenu">
-						<div class="dropdown-item active" onclick="selectAccount('all')">All Accounts</div>
-						<?php foreach ( $instagramUsernames as $username ) : ?>
-							<div class="dropdown-item" onclick="selectAccount('<?php echo htmlspecialchars( $username ); ?>')"><?php echo htmlspecialchars( $username ); ?></div>
-						<?php endforeach; ?>
-					</div>
+			<div class="total-views-container">
+				<div class="total-views-number" id="totalViews"><?php echo number_format( $totalMonthlyViews ); ?></div>
+				<div class="total-views-underline">
+					<div class="total-views-line"></div>
+					<div class="total-views-line"></div>
 				</div>
 			</div>
-			<hr />
-
-			<?php
-				// Process each Instagram username
-				foreach ( $instagramUsernames as $username ) {
-					echo '<div class="page-card" data-account="' . htmlspecialchars( $username ) . '">';
-					echo '<h2>@' . htmlspecialchars( $username ) . '</h2>';
-
-					// Get business discovery (basic info)
-					$businessInfo = getBusinessDiscovery( $username, $instagramAccountId, $accessToken );
-
-					if ( isset( $businessInfo['error'] ) ) {
-						echo '<div class="error">';
-						echo '<strong>Error:</strong> ' . htmlspecialchars( $businessInfo['error']['message'] );
-						echo '</div>';
-						echo '</div>';
-						continue;
-					}
-
-					if ( !isset( $businessInfo['business_discovery'] ) ) {
-						echo '<div class="error">';
-						echo '<strong>Error:</strong> Could not find business account. Make sure the username is correct and it\'s a business account.';
-						echo '</div>';
-						echo '</div>';
-						continue;
-					}
-
-					$account = $businessInfo['business_discovery'];
-					// ALWAYS use the ID from business_discovery - it's the correct Instagram Business Account ID
-					// The provided ID might be a Page ID, which won't work for media/insights
-					$accountId = $account['id']; // This is always the correct Instagram Business Account ID
-
-					// Display basic info
-					echo '<div class="page-header">';
-					if ( isset( $account['profile_picture_url'] ) ) {
-						echo '<img class="profile-img" src="' . htmlspecialchars( $account['profile_picture_url'] ) . '" alt="Profile" />';
-					}
-					echo '<div>';
-					echo '<h3><a href="https://www.instagram.com/' . htmlspecialchars( $account['username'] ) . '" target="_blank">' . htmlspecialchars( $account['username'] ) . '</a></h3>';
-					echo '<p><strong>Posts:</strong> ' . ( isset( $account['media_count'] ) ? $account['media_count'] : 'N/A' ) . ' | ';
-					echo '<strong>Followers:</strong> ' . ( isset( $account['followers_count'] ) ? number_format( $account['followers_count'] ) : 'N/A' ) . ' | ';
-					echo '<strong>Following:</strong> ' . ( isset( $account['follows_count'] ) ? number_format( $account['follows_count'] ) : 'N/A' ) . '</p>';
-					echo '</div>';
-					echo '</div>';
-
-					// Get insights (only works for your own account or accounts you manage)
-					// List of your owned account usernames
-					$ownedAccounts = ['101xmarketing', '101xfounders', 'bizzindia'];
-					
-					// Check if this is one of your accounts
-					if ( in_array( $username, $ownedAccounts ) || $accountId == $instagramAccountId ) {
-						// Use the account's own ID for insights (from business_discovery - always correct)
-						// This allows each account to get its own insights
-						$accountInsightsId = $accountId;
-						
-						// Debug: Show which ID is being used
-						echo '<div style="font-size: 11px; color: #aaaaaa; margin-bottom: 10px;">Using Instagram Account ID: ' . htmlspecialchars( $accountInsightsId ) . ' for insights</div>';
-						
-						// Try getting insights using the account's Instagram Account ID
-						$userInsights = getUserInsights( $accountInsightsId, $accessToken );
-						$userInsightsTotal = getUserInsightsTotalValue( $accountInsightsId, $accessToken );
-						$userInsights30Days = getUserInsights30Days( $accountInsightsId, $accessToken );
-						$reelsInsights = getReelsInsights( $accountInsightsId, $accessToken );
-
-						// Show errors but continue processing other insights
-						if ( isset( $userInsights['error'] ) ) {
-							echo '<div class="error">';
-							echo '<strong>Note:</strong> Some metrics may not be available for this account type. ' . htmlspecialchars( $userInsights['error']['message'] );
-							if ( isset( $userInsights['error']['code'] ) ) {
-								echo ' (Code: ' . $userInsights['error']['code'] . ')';
-							}
-							echo '</div>';
-						}
-						
-						// Continue showing insights even if some fail
-						// Always try to show available insights
-						
-						// Display daily insights
-						if ( isset( $userInsights['data'] ) && !empty( $userInsights['data'] ) ) {
-							echo '<h3>📈 Account Insights (Last 24 Hours)</h3>';
-							foreach ( $userInsights['data'] as $insight ) {
-								echo '<div class="insight-item">';
-								echo '<div class="metric-name">' . htmlspecialchars( $insight['title'] ) . '</div>';
-								if ( !empty( $insight['values'] ) ) {
-									$latestValue = end( $insight['values'] );
-									echo '<div class="insight-value">' . number_format( $latestValue['value'] ) . '</div>';
-									if ( isset( $latestValue['end_time'] ) ) {
-										echo '<div style="font-size: 12px; color: #888;">Last updated: ' . date( 'Y-m-d H:i:s', strtotime( $latestValue['end_time'] ) ) . '</div>';
-									}
-								}
-								echo '</div>';
-							}
-						}
-
-						// Display 30-day reach
-						if ( isset( $userInsights30Days['data'] ) && !empty( $userInsights30Days['data'] ) ) {
-							echo '<h3>📅 Reach - Last 30 Days</h3>';
-							$totalReach = 0;
-							foreach ( $userInsights30Days['data'] as $insight ) {
-								if ( $insight['name'] == 'reach' && !empty( $insight['values'] ) ) {
-									foreach ( $insight['values'] as $value ) {
-										$totalReach += $value['value'];
-									}
-								}
-							}
-							echo '<div class="insight-item">';
-							echo '<div class="metric-name">Total People Reached (Last 30 Days)</div>';
-							echo '<div class="insight-value" style="font-size: 32px; color: #3ea6ff;">' . number_format( $totalReach ) . '</div>';
-							echo '</div>';
-						}
-
-						// Display Top Performing Reels (Last 30 Days)
-						// Note: Carousels don't support views/video_views metric anymore (deprecated Sept 2024)
-						if ( isset( $reelsInsights['reels'] ) && !empty( $reelsInsights['reels'] ) ) {
-							echo '<h3>🎬 Top Performing Reels (Last 30 Days)</h3>';
-							
-							// Show total views from last 30 days
-							if ( isset( $reelsInsights['total_views'] ) && $reelsInsights['total_views'] > 0 ) {
-								echo '<div class="insight-item">';
-								echo '<div class="metric-name">Total Views (Last 30 Days)</div>';
-								echo '<div class="insight-value" style="font-size: 32px; color: #3ea6ff;">' . number_format( $reelsInsights['total_views'] ) . '</div>';
-								echo '<div style="font-size: 12px; color: #888; margin-top: 5px;">Based on ' . count( $reelsInsights['reels'] ) . ' videos/reels from last 30 days</div>';
-								echo '<div style="font-size: 11px; color: #ff4444; margin-top: 5px;">Note: Carousel posts don\'t support views/video_views metric anymore (removed Sept 2024)</div>';
-								echo '</div>';
-							}
-							
-							// Show top 10 reels (already sorted by views)
-							$topReels = array_slice( $reelsInsights['reels'], 0, 10 );
-							
-							if ( !empty( $topReels ) ) {
-								echo '<h4 style="margin-top: 20px;">Top 10 Reels by Views:</h4>';
-								$rank = 1;
-								foreach ( $topReels as $reel ) {
-									if ( $reel['views'] > 0 ) {  // Only show items with views
-										echo '<div style="padding: 10px; background: #181818; margin: 5px 0; border-left: 3px solid #3ea6ff; border-radius: 4px;">';
-										echo '<span style="font-weight: bold; color: #3ea6ff; margin-right: 10px;">#' . $rank . '</span>';
-										echo '<a href="' . htmlspecialchars( $reel['permalink'] ) . '" target="_blank" style="color: #3ea6ff;">View Reel →</a> ';
-										echo '<strong style="margin-left: 10px; color: #ffffff;">Views:</strong> <span style="color: #ffffff;">' . number_format( $reel['views'] ) . '</span>';
-										if ( isset( $reel['timestamp'] ) ) {
-											echo ' <span style="color: #888; font-size: 12px;">| ' . date( 'M d, Y', strtotime( $reel['timestamp'] ) ) . '</span>';
-										}
-										echo '</div>';
-										$rank++;
-									}
-								}
-							}
-							
-							// Show debug info if there are errors
-							if ( isset( $reelsInsights['debug'] ) && !empty( $reelsInsights['debug'] ) ) {
-								$debugCount = is_array( $reelsInsights['debug'] ) ? count( $reelsInsights['debug'] ) : 1;
-								echo '<div style="font-size: 11px; color: #ff4444; margin-top: 10px;">Note: Some videos could not be processed. ' . $debugCount . ' errors.</div>';
-							}
-						} else if ( isset( $reelsInsights['debug'] ) && !empty( $reelsInsights['debug'] ) ) {
-							echo '<h3>🎬 Reels Insights</h3>';
-							echo '<div class="error">Could not retrieve reels insights. Check debug info below.</div>';
-							// Handle both string and array debug info
-							if ( is_array( $reelsInsights['debug'] ) ) {
-								echo '<div style="font-size: 11px; color: #ff4444; margin-top: 5px;">Debug: ' . htmlspecialchars( implode( ', ', array_slice( $reelsInsights['debug'], 0, 3 ) ) ) . '</div>';
-							} else {
-								echo '<div style="font-size: 11px; color: #ff4444; margin-top: 5px;">Debug: ' . htmlspecialchars( $reelsInsights['debug'] ) . '</div>';
-							}
-						}
-
-						// Get recent media and their insights (views/engagement)
-						echo '<h3>📊 Recent Posts Insights</h3>';
-						$userMedia = getUserMedia( $accountInsightsId, $accessToken, 5 );
-						
-						if ( isset( $userMedia['data'] ) && !empty( $userMedia['data'] ) ) {
-							foreach ( $userMedia['data'] as $media ) {
-								// Try Reels metrics first for videos, then fall back
-								$isReel = ( $media['media_type'] == 'VIDEO' );
-								$mediaInsights = getMediaInsights( $media['id'], $accessToken, $media['media_type'], $isReel );
-								
-								// If Reels metrics fail, try regular video metrics
-								if ( isset( $mediaInsights['error'] ) && $isReel ) {
-									$mediaInsights = getMediaInsights( $media['id'], $accessToken, $media['media_type'], false );
-								}
-								
-								echo '<div class="insight-item" style="margin-bottom: 15px;">';
-								echo '<div style="margin-bottom: 10px;">';
-								echo '<a href="' . htmlspecialchars( $media['permalink'] ) . '" target="_blank" style="color: #3ea6ff;">View Post →</a>';
-								echo ' <span style="color: #888;">| Type: ' . htmlspecialchars( $media['media_type'] ) . '</span>';
-								echo '</div>';
-								
-								if ( isset( $mediaInsights['data'] ) && !empty( $mediaInsights['data'] ) ) {
-									foreach ( $mediaInsights['data'] as $insight ) {
-										echo '<div style="display: inline-block; margin-right: 15px; padding: 5px 10px; background: #303030; border-radius: 4px; color: #ffffff;">';
-										$insightTitle = isset( $insight['title'] ) ? $insight['title'] : ( isset( $insight['name'] ) ? $insight['name'] : 'N/A' );
-										echo '<strong>' . htmlspecialchars( $insightTitle ) . ':</strong> ';
-										if ( !empty( $insight['values'] ) ) {
-											$value = isset( $insight['values'][0]['value'] ) ? $insight['values'][0]['value'] : 0;
-											echo number_format( $value );
-										} else {
-											echo '0';
-										}
-										echo '</div>';
-									}
-								} else if ( isset( $mediaInsights['error'] ) ) {
-									echo '<div style="color: #ff4444; font-size: 12px;">Error: ' . htmlspecialchars( $mediaInsights['error']['message'] ) . '</div>';
-								}
-								echo '<div style="margin-top: 5px; color: #aaaaaa;">';
-								echo 'Likes: ' . number_format( $media['like_count'] ) . ' | ';
-								echo 'Comments: ' . number_format( $media['comments_count'] );
-								echo '</div>';
-								echo '</div>';
-							}
-						} else if ( isset( $userMedia['error'] ) ) {
-							echo '<div style="color: #888; font-size: 12px;">Could not load media insights: ' . htmlspecialchars( $userMedia['error']['message'] ) . '</div>';
-						}
-					} else {
-						echo '<div class="success">';
-						echo '<strong>Note:</strong> This is not your account. You can only view public metrics (followers, posts, etc.) via business_discovery. ';
-						echo 'To get detailed insights, you need to own or manage this Instagram Business account.';
-						echo '</div>';
-					}
-
-					echo '</div>';
-				}
-			?>
-
-			<hr />
-			<div style="margin-top: 30px; padding: 15px; background: #181818; border-radius: 5px; border: 1px solid #303030;">
-				<h3 style="color: #ffffff;">ℹ️ Important Notes:</h3>
-				<ul style="color: #aaaaaa;">
-					<li><strong>Own Account:</strong> You can only get detailed insights (impressions, reach, profile views) for Instagram accounts that you own or manage.</li>
-					<li><strong>Other Accounts:</strong> For other accounts, you can only see public data (followers, posts count, etc.) via business_discovery.</li>
-					<li><strong>Permissions:</strong> Make sure your access token has <code style="background: #303030; padding: 2px 6px; border-radius: 3px;">instagram_manage_insights</code> permission.</li>
-					<li><strong>Business Account:</strong> The account must be an Instagram Business or Creator account.</li>
-				</ul>
-			</div>
-		</div>
+		</section>
 		
-		<script>
-			let currentAccount = 'all';
-			
-			function toggleDropdown() {
-				const dropdown = document.getElementById('dropdownMenu');
-				dropdown.classList.toggle('show');
-			}
-			
-			function selectAccount(account) {
-				currentAccount = account;
-				
-				// Update selected account display
-				const selectedAccountEl = document.getElementById('selectedAccount');
-				if (account === 'all') {
-					selectedAccountEl.textContent = 'All Accounts';
-				} else {
-					selectedAccountEl.textContent = '@' + account;
-				}
-				
-				// Update dropdown active state
-				const dropdownItems = document.querySelectorAll('.dropdown-item');
-				dropdownItems.forEach(item => {
-					item.classList.remove('active');
-					if ((account === 'all' && item.textContent.trim() === 'All Accounts') ||
-						(account !== 'all' && item.textContent.trim() === account)) {
-						item.classList.add('active');
-					}
-				});
-				
-				// Show/hide account cards
-				const accountCards = document.querySelectorAll('.page-card');
-				accountCards.forEach(card => {
-					if (account === 'all') {
-						card.style.display = 'block';
-					} else {
-						const cardAccount = card.getAttribute('data-account');
-						if (cardAccount === account) {
-							card.style.display = 'block';
-						} else {
-							card.style.display = 'none';
-						}
-					}
-				});
-				
-				// Close dropdown
-				document.getElementById('dropdownMenu').classList.remove('show');
-			}
-			
-			// Close dropdown when clicking outside
-			document.addEventListener('click', function(event) {
-				const menuContainer = document.querySelector('.menu-container');
-				if (!menuContainer.contains(event.target)) {
-					document.getElementById('dropdownMenu').classList.remove('show');
-				}
-			});
-		</script>
+		<!-- Account Cards Section -->
+		<section class="account-cards-section">
+			<div class="cards-container">
+				<?php foreach ( $accountsData as $accountData ) : ?>
+					<div class="account-card" data-account="<?php echo htmlspecialchars( $accountData['username'] ); ?>" <?php if ( !$accountData['error'] ) : ?>onclick="window.location.href='account_details.php?account=<?php echo urlencode( $accountData['username'] ); ?>'"<?php endif; ?>>
+						<?php if ( $accountData['error'] ) : ?>
+							<div class="account-name">@<?php echo htmlspecialchars( $accountData['username'] ); ?></div>
+							<div class="error">Error: <?php echo htmlspecialchars( $accountData['error'] ); ?></div>
+						<?php else : ?>
+							<div class="account-name">@<?php echo htmlspecialchars( $accountData['username'] ); ?></div>
+							<div class="account-meta">
+								<?php echo number_format( $accountData['posts'] ); ?> posts | <?php echo number_format( $accountData['followers'] ); ?> followers | <?php echo number_format( $accountData['following'] ); ?> following
+							</div>
+							
+							<div class="metric-row">
+								<div class="metric-label">Total Views (this month):</div>
+								<div class="metric-value"><?php echo number_format( $accountData['monthlyViews'] ); ?></div>
+							</div>
+						<?php endif; ?>
+					</div>
+				<?php endforeach; ?>
+			</div>
+		</section>
 	</body>
 </html>
 

@@ -6,5 +6,5 @@ services:
     envVars:
       - key: PORT
         value: 80
-    healthCheckPath: /get_multiple_insights.php
+    healthCheckPath: /health.php
 
