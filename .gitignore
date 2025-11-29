@@ -3,6 +3,10 @@ defines.php
 *.log
 webhooks/*.log
 
+# Data files
+tracking_data.json
+dashboard_cache.json
+
 # Environment files
 .env
 .env.local

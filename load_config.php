@@ -22,7 +22,7 @@
 			define( 'FACEBOOK_APP_ID', $getEnv( 'FACEBOOK_APP_ID', '811119178200956' ) );
 			define( 'FACEBOOK_APP_SECRET', $getEnv( 'FACEBOOK_APP_SECRET', '3786a2ce284d62ef2652851bfa6b0dff' ) );
 			define( 'FACEBOOK_REDIRECT_URI', $getEnv( 'FACEBOOK_REDIRECT_URI', 'https://instagram-analytics-1h8x.onrender.com/obtaining_access_token.php' ) );
-			define( 'ENDPOINT_BASE', 'https://graph.facebook.com/v5.0/' );
+			define( 'ENDPOINT_BASE', 'https://graph.facebook.com/v18.0/' );
 			
 			$accessToken = $envToken;
 			$pageId = $getEnv( 'pageId' ) ?: $getEnv( 'PAGE_ID', '794967310373861' );

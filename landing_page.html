@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Front Seat - Instagram Analytics</title>
+        <meta charset="utf-8" />
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@700&family=Montserrat:wght@800;900&display=swap"
+            rel="stylesheet">
+        <style>
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+		}
+		
+		body {
+			font-family: Arial, sans-serif;
+			background: #000000 !important;
+			color: #ffffff;
+			overflow-x: hidden;
+		}
+		
+		/* Landing Section - Hero */
+		.landing-section {
+			min-height: 100vh;
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+			align-items: center;
+			position: relative;
+			background: #000000;
+			padding: 40px 20px;
+		}
+		
+		/* Purple glow effects in corners */
+		.landing-section::before {
+			content: '';
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: 300px;
+			height: 300px;
+			background: radial-gradient(circle, rgba(94, 0, 255, 0.3) 0%, transparent 70%);
+			pointer-events: none;
+		}
+		
+		.landing-section::after {
+			content: '';
+			position: absolute;
+			top: 0;
+			right: 0;
+			width: 300px;
+			height: 300px;
+			background: radial-gradient(circle, rgba(94, 0, 255, 0.3) 0%, transparent 70%);
+			pointer-events: none;
+		}
+		
+		/* Company Logo */
+		.company-logo {
+			margin-bottom: 60px;
+			text-align: center;
+			z-index: 1;
+			opacity: 0;
+			transform: scale(0.95);
+			animation: fadeIn 1.2s ease-in-out forwards;
+		}
+		
+		@keyframes fadeIn {
+			from {
+				opacity: 0;
+				transform: scale(0.95);
+			}
+			to {
+				opacity: 1;
+				transform: scale(1);
+			}
+		}
+		
+		.company-logo h1 {
+			color: #5E00FF;
+			font-family: 'Montserrat', 'Inter', sans-serif;
+			font-weight: 900;
+			font-size: 25vw;
+			line-height: 0.8;
+			text-align: center;
+			margin: 0;
+			letter-spacing: 0;
+		}
+		
+		@media (min-width: 768px) {
+			.company-logo h1 {
+				font-size: 15vw;
+			}
+		}
+		
+		/* Total Views Display */
+		.total-views-container {
+			text-align: center;
+			z-index: 1;
+		}
+		
+		.total-views-number {
+			font-size: 64px;
+			font-weight: bold;
+			color: #ffffff;
+			margin: 20px 0;
+			letter-spacing: 2px;
+		}
+		
+		.total-views-underline {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 20px;
+			margin-top: 20px;
+		}
+		
+		.total-views-line {
+			width: 100px;
+			height: 2px;
+			background: linear-gradient(to right, transparent, #5E00FF, transparent);
+		}
+		
+		/* Account Cards Section */
+		.account-cards-section {
+			min-height: 100vh;
+			background: #000000;
+			padding: 80px 20px;
+		}
+		
+		.cards-container {
+			max-width: 1400px;
+			margin: 0 auto;
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+			gap: 30px;
+			padding: 20px;
+		}
+		
+		.account-card {
+			background: rgba(33, 33, 33, 0.8);
+			border: 1px solid rgba(255, 255, 255, 0.1);
+			border-radius: 12px;
+			padding: 30px;
+			backdrop-filter: blur(10px);
+			transition: transform 0.3s, box-shadow 0.3s;
+		}
+		
+		.account-card:hover {
+			transform: translateY(-5px);
+			box-shadow: 0 10px 30px rgba(94, 0, 255, 0.3);
+		}
+		
+		.account-name {
+			font-size: 24px;
+			font-weight: bold;
+			color: #ffffff;
+			margin-bottom: 15px;
+		}
+		
+		.account-meta {
+			font-size: 14px;
+			color: #aaaaaa;
+			margin-bottom: 25px;
+			padding-bottom: 15px;
+			border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		}
+		
+		.metric-row {
+			margin: 15px 0;
+			color: #ffffff;
+		}
+		
+		.metric-label {
+			font-size: 14px;
+			color: #aaaaaa;
+			margin-bottom: 5px;
+		}
+		
+		.metric-value {
+			font-size: 20px;
+			font-weight: bold;
+			color: #ffffff;
+		}
+	</style>
+    </head>
+    <body>
+        <!-- Landing Section -->
+        <section class="landing-section">
+            <div class="company-logo">
+                <h1>FRONT<br />SEAT</h1>
+            </div>
+            <div class="total-views-container">
+                <div class="total-views-number">24,434,829</div>
+                <div class="total-views-underline">
+                    <div class="total-views-line"></div>
+                    <div class="total-views-line"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Account Cards Section -->
+        <section class="account-cards-section">
+            <div class="cards-container">
+                <!-- Account Card 1 -->
+                <div class="account-card">
+                    <div class="account-name">@101xmarketing</div>
+                    <div class="account-meta">
+                        posts | 3,816 followers | 0 following
+                    </div>
+
+                    <div class="metric-row">
+                        <div class="metric-label">Total Views:</div>
+                        <div class="metric-value">8,000,000</div>
+                    </div>
+
+                    <div class="metric-row">
+                        <div class="metric-label">Total views on reels:</div>
+                        <div class="metric-value">1,692,853</div>
+                    </div>
+
+                    <div class="metric-row">
+                        <div class="metric-label">Account reach:</div>
+                        <div class="metric-value">1,377,663</div>
+                    </div>
+
+                    <div class="metric-row">
+                        <div class="metric-label">Total likes on statics:</div>
+                        <div class="metric-value">45,230</div>
+                    </div>
+                </div>
+
+                <!-- Account Card 2 -->
+                <div class="account-card">
+                    <div class="account-name">@101xfounders</div>
+                    <div class="account-meta">
+                        posts | 2,500 followers | 150 following
+                    </div>
+
+                    <div class="metric-row">
+                        <div class="metric-label">Total Views:</div>
+                        <div class="metric-value">5,000,000</div>
+                    </div>
+
+                    <div class="metric-row">
+                        <div class="metric-label">Total views on reels:</div>
+                        <div class="metric-value">800,000</div>
+                    </div>
+
+                    <div class="metric-row">
+                        <div class="metric-label">Account reach:</div>
+                        <div class="metric-value">650,000</div>
+                    </div>
+
+                    <div class="metric-row">
+                        <div class="metric-label">Total likes on statics:</div>
+                        <div class="metric-value">28,500</div>
+                    </div>
+                </div>
+
+                <!-- Account Card 3 -->
+                <div class="account-card">
+                    <div class="account-name">@bizzindia</div>
+                    <div class="account-meta">
+                        posts | 5,200 followers | 200 following
+                    </div>
+
+                    <div class="metric-row">
+                        <div class="metric-label">Total Views:</div>
+                        <div class="metric-value">11,434,829</div>
+                    </div>
+
+                    <div class="metric-row">
+                        <div class="metric-label">Total views on reels:</div>
+                        <div class="metric-value">2,100,000</div>
+                    </div>
+
+                    <div class="metric-row">
+                        <div class="metric-label">Account reach:</div>
+                        <div class="metric-value">1,800,000</div>
+                    </div>
+
+                    <div class="metric-row">
+                        <div class="metric-label">Total likes on statics:</div>
+                        <div class="metric-value">95,000</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </body>
+</html>

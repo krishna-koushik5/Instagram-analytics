@@ -24,8 +24,7 @@
 	// Format: 'username' => 'instagram_account_id'
 	$instagramAccountIds = [
 		'101xmarketing' => '17841475978250722',  // Already in defines.php
-		// Add IDs for other accounts here (optional - will be fetched automatically if not provided):
-		// '101xfounders' => 'YOUR-INSTAGRAM-ACCOUNT-ID-HERE',
+		'101xfounders' => '660517977141799',  // Instagram Account ID for 101xfounders
 		'bizzindia' => '789802470889988',  // Instagram Account ID for bizzindia
 	];
 	// ============================================
@@ -336,12 +335,50 @@
 	// COLLECT DATA FOR LANDING PAGE
 	// Only load monthly views (fast) - other detailed metrics load on detail page
 	// ============================================
-	$accountsData = array();
-	$totalMonthlyViews = 0;
-	$ownedAccounts = ['101xmarketing', '101xfounders', 'bizzindia', 'startupcoded', 'foundersinindia'];
 	
-	// Process each Instagram username to collect basic info + monthly views
-	foreach ( $instagramUsernames as $username ) {
+	// Simple cache system - cache for 5 minutes
+	$cacheFile = __DIR__ . '/dashboard_cache.json';
+	$cacheTime = 300; // 5 minutes
+	$useCache = true;
+	
+	// Detect if this is a manual page reload (F5/refresh button)
+	// If user is coming from the same page (refresh) or no referrer, bypass cache
+	$isPageReload = false;
+	$referrer = isset( $_SERVER['HTTP_REFERER'] ) ? $_SERVER['HTTP_REFERER'] : '';
+	$currentScript = basename( $_SERVER['PHP_SELF'] );
+	
+	// Check if referrer is the same page (indicates refresh)
+	if ( !empty( $referrer ) ) {
+		$referrerPath = parse_url( $referrer, PHP_URL_PATH );
+		if ( strpos( $referrerPath, $currentScript ) !== false ) {
+			$isPageReload = true;
+		}
+	}
+	
+	// Check if cache exists and is fresh (only use cache if NOT a reload and coming from another page)
+	if ( !$isPageReload && $useCache && file_exists( $cacheFile ) ) {
+		$cacheData = json_decode( file_get_contents( $cacheFile ), true );
+		if ( $cacheData && isset( $cacheData['timestamp'] ) && ( time() - $cacheData['timestamp'] ) < $cacheTime ) {
+			// Use cached data (only if navigating from another page, not on reload)
+			$accountsData = $cacheData['accountsData'];
+			$totalMonthlyViews = $cacheData['totalMonthlyViews'];
+		} else {
+			// Cache expired, fetch fresh data
+			$useCache = false;
+		}
+	} else {
+		// Page reload or no cache - fetch fresh data
+		$useCache = false;
+	}
+	
+	if ( !$useCache ) {
+		// Fetch fresh data
+		$accountsData = array();
+		$totalMonthlyViews = 0;
+		$ownedAccounts = ['101xmarketing', '101xfounders', 'bizzindia', 'startupcoded', 'foundersinindia'];
+		
+		// Process each Instagram username to collect basic info + monthly views
+		foreach ( $instagramUsernames as $username ) {
 		$accountData = array(
 			'username' => $username,
 			'error' => null,
@@ -357,7 +394,11 @@
 		$businessInfo = getBusinessDiscovery( $username, $instagramAccountId, $accessToken );
 		
 		if ( isset( $businessInfo['error'] ) ) {
-			$accountData['error'] = $businessInfo['error']['message'];
+			// Show detailed error for debugging
+			$errorMsg = $businessInfo['error']['message'];
+			$errorCode = isset( $businessInfo['error']['code'] ) ? ' (Code: ' . $businessInfo['error']['code'] . ')' : '';
+			$errorType = isset( $businessInfo['error']['type'] ) ? ' [Type: ' . $businessInfo['error']['type'] . ']' : '';
+			$accountData['error'] = $errorMsg . $errorCode . $errorType;
 			$accountsData[] = $accountData;
 			continue;
 		}
@@ -389,6 +430,75 @@
 		// They will be loaded in account_details.php when user clicks on a card.
 		
 		$accountsData[] = $accountData;
+		}
+		
+		// Save to cache
+		file_put_contents( $cacheFile, json_encode( array(
+			'timestamp' => time(),
+			'accountsData' => $accountsData,
+			'totalMonthlyViews' => $totalMonthlyViews
+		), JSON_PRETTY_PRINT ) );
+	}
+	
+	// Force refresh cache if ?refresh=1 is in URL
+	if ( isset( $_GET['refresh'] ) && $_GET['refresh'] == '1' ) {
+		$accountsData = array();
+		$totalMonthlyViews = 0;
+		$ownedAccounts = ['101xmarketing', '101xfounders', 'bizzindia', 'startupcoded', 'foundersinindia'];
+		
+		foreach ( $instagramUsernames as $username ) {
+			$accountData = array(
+				'username' => $username,
+				'error' => null,
+				'account' => null,
+				'accountId' => null,
+				'monthlyViews' => 0,
+				'posts' => 0,
+				'followers' => 0,
+				'following' => 0
+			);
+			
+			$businessInfo = getBusinessDiscovery( $username, $instagramAccountId, $accessToken );
+			
+			if ( isset( $businessInfo['error'] ) ) {
+				$errorMsg = $businessInfo['error']['message'];
+				$errorCode = isset( $businessInfo['error']['code'] ) ? ' (Code: ' . $businessInfo['error']['code'] . ')' : '';
+				$errorType = isset( $businessInfo['error']['type'] ) ? ' [Type: ' . $businessInfo['error']['type'] . ']' : '';
+				$accountData['error'] = $errorMsg . $errorCode . $errorType;
+				$accountsData[] = $accountData;
+				continue;
+			}
+			
+			if ( !isset( $businessInfo['business_discovery'] ) ) {
+				$accountData['error'] = 'Could not find business account';
+				$accountsData[] = $accountData;
+				continue;
+			}
+			
+			$account = $businessInfo['business_discovery'];
+			$accountId = $account['id'];
+			
+			$accountData['account'] = $account;
+			$accountData['accountId'] = $accountId;
+			$accountData['posts'] = isset( $account['media_count'] ) ? $account['media_count'] : 0;
+			$accountData['followers'] = isset( $account['followers_count'] ) ? $account['followers_count'] : 0;
+			$accountData['following'] = isset( $account['follows_count'] ) ? $account['follows_count'] : 0;
+			
+			if ( in_array( $username, $ownedAccounts ) || $accountId == $instagramAccountId ) {
+				$monthlyViews = getMonthlyTotalViews( $accountId, $accessToken );
+				$accountData['monthlyViews'] = $monthlyViews;
+				$totalMonthlyViews += $monthlyViews;
+			}
+			
+			$accountsData[] = $accountData;
+		}
+		
+		// Update cache
+		file_put_contents( $cacheFile, json_encode( array(
+			'timestamp' => time(),
+			'accountsData' => $accountsData,
+			'totalMonthlyViews' => $totalMonthlyViews
+		), JSON_PRETTY_PRINT ) );
 	}
 ?>
 <!DOCTYPE html>
@@ -586,6 +696,144 @@
 			color: #ff4444;
 			padding: 10px;
 		}
+		
+		/* Hamburger Menu */
+		.hamburger-menu {
+			position: fixed;
+			top: 20px;
+			right: 20px;
+			z-index: 1000;
+		}
+		
+		.hamburger-btn {
+			width: 50px;
+			height: 50px;
+			background: rgba(33, 33, 33, 0.9);
+			border: 1px solid rgba(255, 255, 255, 0.1);
+			border-radius: 8px;
+			cursor: pointer;
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+			align-items: center;
+			gap: 6px;
+			transition: all 0.3s;
+			backdrop-filter: blur(10px);
+		}
+		
+		.hamburger-btn:hover {
+			background: rgba(94, 0, 255, 0.2);
+			border-color: #5E00FF;
+		}
+		
+		.hamburger-btn span {
+			width: 25px;
+			height: 3px;
+			background: #ffffff;
+			border-radius: 2px;
+			transition: all 0.3s;
+		}
+		
+		.hamburger-btn.active span:nth-child(1) {
+			transform: rotate(45deg) translate(8px, 8px);
+		}
+		
+		.hamburger-btn.active span:nth-child(2) {
+			opacity: 0;
+		}
+		
+		.hamburger-btn.active span:nth-child(3) {
+			transform: rotate(-45deg) translate(7px, -7px);
+		}
+		
+		.menu-overlay {
+			position: fixed;
+			top: 0;
+			right: -100%;
+			width: 300px;
+			height: 100vh;
+			background: rgba(18, 18, 18, 0.98);
+			backdrop-filter: blur(20px);
+			border-left: 1px solid rgba(255, 255, 255, 0.1);
+			z-index: 999;
+			transition: right 0.3s ease;
+			padding: 80px 30px 30px;
+			box-shadow: -5px 0 30px rgba(0, 0, 0, 0.5);
+		}
+		
+		.menu-overlay.active {
+			right: 0;
+		}
+		
+		.menu-header {
+			margin-bottom: 40px;
+			padding-bottom: 20px;
+			border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		}
+		
+		.menu-header h2 {
+			color: #5E00FF;
+			font-size: 24px;
+			font-weight: bold;
+			margin: 0;
+		}
+		
+		.menu-items {
+			list-style: none;
+			padding: 0;
+			margin: 0;
+		}
+		
+		.menu-items li {
+			margin-bottom: 15px;
+		}
+		
+		.menu-items a {
+			display: flex;
+			align-items: center;
+			padding: 15px 20px;
+			color: #ffffff;
+			text-decoration: none;
+			border-radius: 8px;
+			transition: all 0.3s;
+			font-size: 16px;
+			background: rgba(33, 33, 33, 0.5);
+			border: 1px solid rgba(255, 255, 255, 0.05);
+		}
+		
+		.menu-items a:hover {
+			background: rgba(94, 0, 255, 0.2);
+			border-color: #5E00FF;
+			transform: translateX(5px);
+		}
+		
+		.menu-items a.active {
+			background: rgba(94, 0, 255, 0.3);
+			border-color: #5E00FF;
+		}
+		
+		.menu-items a .menu-icon {
+			margin-right: 15px;
+			font-size: 20px;
+		}
+		
+		.menu-close-overlay {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background: rgba(0, 0, 0, 0.5);
+			z-index: 998;
+			opacity: 0;
+			visibility: hidden;
+			transition: all 0.3s;
+		}
+		
+		.menu-close-overlay.active {
+			opacity: 1;
+			visibility: visible;
+		}
 			
 			.container { 
 				max-width: 1200px; 
@@ -772,6 +1020,79 @@
 		</style>
 	</head>
 	<body style="background: #000000 !important;">
+		<!-- Hamburger Menu -->
+		<div class="hamburger-menu">
+			<button class="hamburger-btn" id="hamburgerBtn" onclick="toggleMenu()">
+				<span></span>
+				<span></span>
+				<span></span>
+			</button>
+		</div>
+		
+		<!-- Menu Overlay -->
+		<div class="menu-close-overlay" id="menuOverlay" onclick="closeMenu()"></div>
+		<nav class="menu-overlay" id="menuNav">
+			<div class="menu-header">
+				<h2>FRONT SEAT</h2>
+			</div>
+			<ul class="menu-items">
+				<li>
+					<a href="get_multiple_insights.php" class="active">
+						<span class="menu-icon">🏠</span>
+						<span>Dashboard</span>
+					</a>
+				</li>
+				<li>
+					<a href="scoreboard.php">
+						<span class="menu-icon">🏆</span>
+						<span>Scoreboard</span>
+					</a>
+				</li>
+				<li>
+					<a href="get_reel_views.php">
+						<span class="menu-icon">🎬</span>
+						<span>Get Reel Views</span>
+					</a>
+				</li>
+			</ul>
+		</nav>
+		
+		<script>
+			function toggleMenu() {
+				const btn = document.getElementById('hamburgerBtn');
+				const nav = document.getElementById('menuNav');
+				const overlay = document.getElementById('menuOverlay');
+				
+				btn.classList.toggle('active');
+				nav.classList.toggle('active');
+				overlay.classList.toggle('active');
+			}
+			
+			function closeMenu() {
+				const btn = document.getElementById('hamburgerBtn');
+				const nav = document.getElementById('menuNav');
+				const overlay = document.getElementById('menuOverlay');
+				
+				btn.classList.remove('active');
+				nav.classList.remove('active');
+				overlay.classList.remove('active');
+			}
+			
+			// Close menu on escape key
+			document.addEventListener('keydown', function(e) {
+				if (e.key === 'Escape') {
+					closeMenu();
+				}
+			});
+			
+			// Close menu when clicking menu links
+			document.querySelectorAll('.menu-items a').forEach(function(link) {
+				link.addEventListener('click', function() {
+					closeMenu();
+				});
+			});
+		</script>
+		
 		<!-- Landing Section -->
 		<section class="landing-section">
 			<div class="company-logo">

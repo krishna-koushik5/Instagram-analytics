@@ -1,0 +1,16 @@
+<svg width="1200" height="600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap');
+      .logo-text {
+        font-family: 'Inter', Arial, sans-serif;
+        font-size: 180px;
+        font-weight: 700;
+        fill: #5E17EB;
+      }
+    </style>
+  </defs>
+  <rect width="1200" height="600" fill="#000000"/>
+  <text x="600" y="250" class="logo-text" text-anchor="middle" dominant-baseline="middle">FRONT</text>
+  <text x="600" y="450" class="logo-text" text-anchor="middle" dominant-baseline="middle">SEAT</text>
+</svg>
